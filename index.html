@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Atril · Entrenador de oposiciones y comunicación oral</title>
+<meta name="theme-color" content="#141726"/>
+<meta name="description" content="Entrena tu temario y supuestos de oposición, por partes o completos, con repaso espaciado, dictado por voz y corrección con IA."/>
+<link rel="manifest" href="manifest.webmanifest"/>
+<link rel="icon" href="icons/icon-32.png" sizes="32x32"/>
+<link rel="icon" href="icons/icon-16.png" sizes="16x16"/>
+<link rel="apple-touch-icon" href="icons/icon-180.png"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="Atril"/>
+<style>
+:root{
+  --fs:1;
+  --ink:#141726;--ink-2:#1b2033;--panel:#20263b;--panel-2:#262d45;--line:#2f3754;
+  --text:#eaecf4;--text-dim:#c3c8da;--text-mute:#8d94ad;
+  --brass:#e8b84b;--brass-2:#f2d585;--signal:#7aa7ff;--ok:#4cc38a;--warn:#e9a23b;--bad:#e86b6b;
+  --font-ui:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  --font-display:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+  --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --r:14px;
+}
+[data-theme=light]{--ink:#f6f3ec;--ink-2:#efeae0;--panel:#ffffff;--panel-2:#f7f4ee;--line:#e2dccf;--text:#1d2133;--text-dim:#3b4057;--text-mute:#6f7489;--brass:#b8860b;--brass-2:#d9a62a;--signal:#2f62d0;--ok:#1f8f5a;--warn:#b86e00;--bad:#c23b3b}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--ink);color:var(--text);font-family:var(--font-ui);font-size:calc(15px * var(--fs));line-height:1.5;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--brass)}
+code{font-family:var(--font-mono);font-size:.88em;background:var(--ink-2);padding:1px 6px;border-radius:5px}
+h1,h2,h3{font-family:var(--font-display);font-weight:600;margin:0;letter-spacing:-.01em}
+h3{font-size:1.08em;margin-bottom:8px}
+.muted{color:var(--text-mute)} .small{font-size:.88em}
+.hint{font-size:.86em;color:var(--text-mute);margin:6px 0 10px}
+
+/* Layout */
+.app{display:grid;grid-template-columns:250px 1fr;height:100vh;height:100dvh}
+#sidebar{background:var(--ink-2);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 12px;gap:4px;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 16px}
+.brand img{width:36px;height:36px;border-radius:9px}
+.brand b{font-family:var(--font-display);font-size:1.3em}
+.brand small{display:block;color:var(--text-mute);font-size:.72em;margin-top:-2px}
+.nav-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--text-dim)}
+.nav-item:hover{background:var(--panel)}
+.nav-item.active{background:var(--panel);color:var(--text);box-shadow:inset 3px 0 0 var(--brass)}
+.nav-sep{font-size:.72em;text-transform:uppercase;letter-spacing:.08em;color:var(--text-mute);margin:12px 12px 4px}
+.sb-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:12px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brass),var(--brass-2));color:#3a2f12;display:grid;place-items:center;font-weight:700}
+#main{overflow:auto;padding:26px clamp(14px,4vw,40px) 90px;position:relative}
+.topbar{display:none}
+.view{display:none;max-width:1050px;margin:0 auto}
+.view.active{display:block;animation:fade .2s}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+.view-head{margin-bottom:18px}
+.view-head h1{font-size:clamp(24px,4.4vw,34px)}
+.eyebrow{font-size:.75em;letter-spacing:.1em;text-transform:uppercase;color:var(--brass);margin-bottom:4px}
+
+/* Components */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:14px}
+.callout{border-color:color-mix(in srgb,var(--brass) 50%,var(--line));background:color-mix(in srgb,var(--brass) 8%,var(--panel))}
+.okc{border-color:var(--ok)} .koc{border-color:var(--bad)}
+.grid{display:grid;gap:14px}
+.grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.grid.tight{gap:10px}
+.grid>.card{margin-bottom:0}
+.grid+.card,.grid+.grid,.card+.grid{margin-top:14px}
+.stat .n{font-family:var(--font-display);font-size:2em;font-weight:600;line-height:1.1}
+.stat .n small{font-size:.5em;color:var(--text-mute)}
+.stat .l{font-size:.84em;color:var(--text-mute)}
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap} .row.between{justify-content:space-between}
+.btn{background:var(--panel-2);border:1px solid var(--line);padding:10px 16px;border-radius:11px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:42px;white-space:nowrap}
+.btn:hover{border-color:var(--text-mute)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.primary{background:linear-gradient(135deg,var(--brass),var(--brass-2));color:#3a2f12;border-color:transparent;font-weight:600}
+.btn.ghost{background:transparent}
+.btn.danger,.btn.ghost.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 50%,var(--line))}
+.btn.sm{padding:6px 10px;min-height:32px;font-size:.86em}
+.btn.rec{background:var(--bad);color:#fff;border-color:var(--bad);animation:pulse 1.4s infinite}
+.btn.back{margin-bottom:10px;padding-left:4px;border:0}
+@keyframes pulse{50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--bad) 20%,transparent)}}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label{font-size:.86em;color:var(--text-dim);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+input[type=text],input[type=password],input[type=date],input[type=number],input:not([type]),select,textarea{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:42px}
+input:focus,select:focus,textarea:focus{outline:2px solid color-mix(in srgb,var(--brass) 60%,transparent);outline-offset:1px}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:.92em;cursor:pointer}
+.chk input{width:18px;height:18px;min-height:0;accent-color:var(--brass)}
+.editor{min-height:240px;font-family:var(--font-ui);line-height:1.6;resize:vertical;margin:10px 0}
+.editor.answer{font-size:1.05em}
+.tag{display:inline-flex;align-items:center;padding:4px 10px;border-radius:99px;border:1px solid var(--line);font-size:.82em;margin:0 6px 6px 0;background:var(--panel-2)}
+.pill{font-size:.75em;border:1px solid;border-radius:99px;padding:2px 8px;white-space:nowrap}
+.empty{padding:28px;text-align:center;color:var(--text-mute);border:1px dashed var(--line);border-radius:var(--r)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input{flex:1;min-width:180px}
+.sticky-tools{position:sticky;top:-26px;z-index:5;background:var(--ink);padding:8px 0;margin-bottom:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.seg button{background:transparent;border:0;padding:9px 14px;cursor:pointer;color:var(--text-dim)}
+.seg button.on{background:var(--panel-2);color:var(--text);box-shadow:inset 0 -2px 0 var(--brass)}
+.seg.big{display:grid;grid-template-columns:repeat(3,1fr);width:100%}
+.seg.big button{display:flex;flex-direction:column;padding:12px 8px}
+.seg.big small{color:var(--text-mute);font-size:.78em}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.tabs button{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 14px;cursor:pointer}
+.tabs button.on{border-color:var(--brass);color:var(--brass)}
+.qtitle{font-weight:600;margin:10px 0 0}
+.clock{font-family:var(--font-mono);font-size:1.1em;color:var(--brass)}
+.clock.big{font-size:1.6em}
+
+/* Temario */
+.tema-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.tema-card,.sup-card{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.sup-card{width:100%;margin-bottom:10px}
+.tema-card:hover,.sup-card:hover{border-color:var(--brass)}
+.tema-card.sel{box-shadow:inset 3px 0 0 var(--brass)}
+.tema-card .tn{font-size:.75em;text-transform:uppercase;letter-spacing:.08em;color:var(--brass)}
+.dots{display:flex;gap:3px;flex-wrap:wrap}
+.dots i{width:12px;height:8px;border-radius:3px;display:block}
+.sec-list{display:flex;flex-direction:column}
+.sec-row{display:flex;align-items:center;gap:10px;padding:10px 4px;border-top:1px solid var(--line);cursor:pointer}
+.sec-row:first-child{border-top:0}
+.sec-row input{width:20px;height:20px;min-height:0;accent-color:var(--brass);flex:none}
+.sec-row .num{font-family:var(--font-mono);color:var(--text-mute);width:22px;flex:none}
+.sec-row .tt{flex:1}
+.sec-row small{display:block}
+.sec-preview{font-size:.9em;margin-top:4px}
+.sect{margin:20px 0 10px}
+.train-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:14px}
+.train{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.train:hover{border-color:var(--brass)}
+.train span{font-size:.85em;color:var(--text-mute)}
+.reading{white-space:pre-wrap;line-height:1.75;font-size:1.04em}
+.fl{cursor:pointer}.fl .rest{display:none}.fl.show .rest{display:inline}.fl.show .dots-r{display:none}.fl .dots-r{color:var(--text-mute);letter-spacing:-1px}
+.reading h3{white-space:normal}
+input.gap{width:auto!important;display:inline-block;max-width:100%;min-height:0!important;padding:1px 6px!important;border-radius:6px!important;border:1px dashed var(--brass)!important;background:var(--ink-2)!important;font-size:.95em}
+input.gap.ok{border:1px solid var(--ok)!important;color:var(--ok)}
+input.gap.ko{border:1px solid var(--bad)!important;color:var(--bad)}
+.plan{display:flex;flex-direction:column;gap:2px;margin-top:12px;font-size:.88em}
+.plan .pl{display:flex;justify-content:space-between;padding:5px 8px;border-radius:7px}
+.plan .pl.now{background:color-mix(in srgb,var(--brass) 18%,transparent);color:var(--brass)}
+.plan .pl.past{color:var(--text-mute);text-decoration:line-through}
+.idx-row{display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+.idx-row.ok span:first-child{color:var(--ok)} .idx-row.ko span:first-child{color:var(--bad)}
+.flash{min-height:180px;display:flex;flex-direction:column;justify-content:center;gap:14px}
+.flash .q{font-family:var(--font-display);font-size:1.3em;margin:0}
+.flash .a{border-top:1px solid var(--line);padding-top:12px;color:var(--text-dim)}
+.plan-card{text-align:left;cursor:pointer;margin:0}
+.plan-card .n{font-family:var(--font-display);font-size:2em;font-weight:600;color:var(--brass)}
+.plan-card .l{color:var(--text-mute);font-size:.86em}
+details summary{cursor:pointer;font-weight:600}
+
+/* Feedback / informe */
+.gauge{margin-bottom:12px}
+.gauge .top{display:flex;justify-content:space-between;gap:10px;font-size:.9em;margin-bottom:4px}
+.gauge .bar{height:8px;background:var(--ink-2);border-radius:99px;overflow:hidden}
+.gauge .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--brass),var(--brass-2));border-radius:99px}
+.fb-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.fb-list li{display:flex;gap:9px;font-size:.93em}
+.fb-list .dot{width:8px;height:8px;border-radius:50%;margin-top:8px;flex:none}
+
+/* Biblioteca */
+#dropzone{border:2px dashed var(--line);border-radius:var(--r);padding:30px;text-align:center;cursor:pointer;color:var(--text-dim);margin-bottom:16px}
+#dropzone.over{border-color:var(--brass);background:color-mix(in srgb,var(--brass) 6%,transparent)}
+.doc-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.doc-row:first-of-type{border-top:0}
+.doc-row .ic{width:42px;height:42px;border-radius:10px;background:var(--panel-2);display:grid;place-items:center;font-family:var(--font-mono);font-size:.78em;color:var(--brass);flex:none}
+.doc-row .info{flex:1;min-width:0}
+.doc-row .info b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-row .info span{font-size:.82em;color:var(--text-mute)}
+.rag-dot{width:10px;height:10px;border-radius:50%;flex:none}
+
+/* Sesión por voz */
+.mode-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.mode-card{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:3px}
+.mode-card.sel{border-color:var(--brass);box-shadow:0 0 0 1px var(--brass)}
+.mode-card .mic{font-size:1.4em}.mode-card span:last-child{font-size:.8em;color:var(--text-mute)}
+.stage{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px}
+.orb-wrap{position:relative;width:120px;height:120px;display:grid;place-items:center}
+.orb{width:96px;height:96px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--brass-2),var(--brass) 55%,#9a6f14);box-shadow:0 0 40px color-mix(in srgb,var(--brass) 35%,transparent);transition:transform .3s}
+.orb.idle{filter:saturate(.4) brightness(.8)}
+.orb.speaking{animation:breathe 1s infinite}
+@keyframes breathe{50%{transform:scale(1.07)}}
+#orbRing{position:absolute;inset:0;border-radius:50%;border:2px solid transparent}
+#orbRing.pulse{border-color:var(--signal);animation:ring 1.5s infinite}
+@keyframes ring{0%{transform:scale(.85);opacity:1}100%{transform:scale(1.25);opacity:0}}
+#vu{display:flex;gap:4px;align-items:center;height:60px}
+#vu i{width:6px;height:6px;border-radius:3px;background:var(--signal);transition:height .08s}
+#transcript{max-height:46vh;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:4px}
+.turn{display:flex;flex-direction:column;max-width:86%}
+.turn.user{align-self:flex-end;align-items:flex-end}
+.turn .who{font-size:.72em;color:var(--text-mute);margin-bottom:2px}
+.turn .bubble{background:var(--panel-2);border:1px solid var(--line);padding:10px 14px;border-radius:14px}
+.turn.user .bubble{background:color-mix(in srgb,var(--signal) 16%,var(--panel))}
+.bubble.interim{opacity:.6;font-style:italic}
+
+/* Banner, toasts, modal */
+.ai-banner{display:none;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;margin-bottom:16px;border:1px solid var(--line);font-size:.92em}
+.ai-banner span{flex:1}
+.ai-banner.ok{border-color:var(--ok)} .ai-banner.warn{border-color:var(--warn)} .ai-banner.bad{border-color:var(--bad)} .ai-banner.info{border-color:var(--signal)}
+.ai-banner .x{background:none;border:0;cursor:pointer;color:var(--text-mute);font-size:1.1em}
+#toasts{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:100;width:min(92vw,460px)}
+.toast{background:var(--panel-2);border:1px solid var(--line);padding:11px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:opacity .3s;font-size:.93em}
+.toast.ok{border-color:var(--ok)} .toast.bad{border-color:var(--bad)}
+#modalBg{position:fixed;inset:0;background:rgba(5,7,15,.6);display:none;place-items:center;z-index:90;padding:16px}
+#modalBg.open{display:grid}
+#modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;width:min(560px,100%);max-height:90vh;overflow:auto}
+#modal h3{margin-bottom:12px}
+#modal .row{justify-content:flex-end;margin-top:16px}
+#scrim{display:none}
+
+/* Móvil */
+@media (max-width:820px){
+  .app{grid-template-columns:1fr}
+  #sidebar{position:fixed;inset:0 auto 0 0;width:270px;z-index:60;transform:translateX(-105%);transition:transform .25s;padding-top:calc(18px + env(safe-area-inset-top))}
+  #sidebar.open{transform:none}
+  #scrim.on{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55}
+  .topbar{display:flex;align-items:center;gap:10px;position:sticky;top:-26px;margin:-26px -14px 14px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:var(--ink-2);border-bottom:1px solid var(--line);z-index:20}
+  .topbar b{font-family:var(--font-display);font-size:1.15em}
+  #ham{background:none;border:0;font-size:1.5em;cursor:pointer;padding:4px 8px}
+  .grid.cols-4{grid-template-columns:repeat(2,1fr)}
+  .grid.cols-2,.grid.cols-3{grid-template-columns:1fr}
+  .grid.cols-3.tight{grid-template-columns:1fr 2fr}
+  .sticky-tools{top:30px}
+  .seg.big small{display:none}
+  .ai-banner{font-size:.84em;flex-wrap:wrap;padding:10px 12px}
+}
+@media print{#sidebar,.topbar,.btn,#toasts{display:none!important}.app{display:block}#main{overflow:visible}}
+</style>
+<script>
+  // Librerías locales (funcionan sin conexión una vez instalada la app)
+  window.__LIBS__ = {
+    pdf: new URL('libs/pdf.min.js', location.href).href,
+    pdfWorker: new URL('libs/pdf.worker.min.js', location.href).href,
+    mammoth: new URL('libs/mammoth.browser.min.js', location.href).href,
+    xlsx: new URL('libs/xlsx.full.min.js', location.href).href,
+    jszip: new URL('libs/jszip.min.js', location.href).href
+  };
+</script>
+</head>
+<body>
+<div class="app">
+  <aside id="sidebar">
+    <div class="brand"><img src="icons/icon-192.png" alt=""/><div><b>Atril</b><small>Oposición · Orientación</small></div></div>
+    <button class="nav-item active" data-view="inicio">🏠 Inicio</button>
+    <div class="nav-sep">Estudiar</div>
+    <button class="nav-item" data-view="repaso">🔁 Repaso de hoy</button>
+    <button class="nav-item" data-view="temario">📚 Temario</button>
+    <button class="nav-item" data-view="supuestos">🧩 Supuestos</button>
+    <div class="nav-sep">Hablar</div>
+    <button class="nav-item" data-view="sesion">🎙 Ensayo oral</button>
+    <div class="nav-sep">Material y datos</div>
+    <button class="nav-item" data-view="biblioteca">🗂 Biblioteca</button>
+    <button class="nav-item" data-view="stats">📈 Progreso</button>
+    <button class="nav-item" data-view="ajustes">⚙️ Ajustes</button>
+    <button class="nav-item" id="installBtn" style="display:none">📲 Instalar app</button>
+    <div class="sb-foot" data-view="perfiles"><span class="avatar" id="sbAvatar">·</span><div><b id="sbName" style="display:block">—</b><small class="muted" id="sbProvider"></small></div></div>
+  </aside>
+  <div id="scrim"></div>
+
+  <main id="main">
+    <div class="topbar"><button id="ham" aria-label="Menú">☰</button><b>Atril</b></div>
+    <div id="aiBanner" class="ai-banner"></div>
+
+    <!-- INICIO -->
+    <section class="view active" id="view-inicio">
+      <div class="view-head"><div class="eyebrow">Tu atril</div><h1 id="greet">Hola</h1></div>
+      <div id="homePlan"></div>
+      <div class="grid cols-4" id="homeStats" style="margin-top:14px"></div>
+      <div class="grid cols-3" style="margin-top:14px">
+        <button class="card plan-card" data-view="repaso"><b>🔁 Repasar</b><div class="l">Lo que toca hoy, según tu energía</div></button>
+        <button class="card plan-card" data-view="temario"><b>📚 Mis temas</b><div class="l">Entrena completo o por apartados</div></button>
+        <button class="card plan-card" data-view="supuestos"><b>🧩 Supuestos</b><div class="l">Completos, por preguntas o por fases</div></button>
+      </div>
+      <div class="card" style="margin-top:14px"><h3>Ensayos orales recientes</h3><div id="recentSessions"></div></div>
+    </section>
+
+    <!-- REPASO -->
+    <section class="view" id="view-repaso">
+      <div class="view-head"><div class="eyebrow">Repaso espaciado</div><h1>Repaso de hoy</h1></div>
+      <div id="repasoRoot"></div>
+    </section>
+
+    <!-- TEMARIO -->
+    <section class="view" id="view-temario">
+      <div class="view-head"><div class="eyebrow">Parte escrita</div><h1>Temario</h1></div>
+      <div id="temarioRoot"></div>
+    </section>
+
+    <!-- SUPUESTOS -->
+    <section class="view" id="view-supuestos">
+      <div class="view-head"><div class="eyebrow">Parte práctica</div><h1>Supuestos prácticos</h1></div>
+      <div id="supRoot"></div>
+    </section>
+
+    <!-- SESIÓN ORAL -->
+    <section class="view" id="view-sesion">
+      <div class="view-head"><div class="eyebrow">Comunicación oral</div><h1>Ensayo oral</h1></div>
+      <div id="sesionSetup">
+        <div class="card"><h3>1 · Elige el escenario</h3><div class="mode-grid" id="modeGrid"></div></div>
+        <div class="card">
+          <h3>2 · Ajusta la sesión</h3>
+          <div class="grid cols-2 tight">
+            <div class="field"><label>Tema o contexto (opcional)</label><input type="text" id="sessionTopic" placeholder="p. ej. Tema 59 / Plan de actuación del EOA"/></div>
+            <div class="field"><label>Exigencia</label><select id="difficulty"><option value="suave">Suave</option><option value="medio" selected>Realista</option><option value="alto">Tribunal duro</option></select></div>
+          </div>
+          <div class="field"><label>Documentos de apoyo (la IA los consulta y cita)</label><div id="ragPicker"></div></div>
+          <div class="row wrap"><button class="btn primary" id="startBtn">🎙 Empezar por voz</button><button class="btn" id="startTextBtn">⌨️ Modo escrito</button></div>
+        </div>
+      </div>
+      <div id="sesionLive" style="display:none">
+        <div class="card stage">
+          <div class="orb-wrap"><div id="orbRing"></div><div class="orb idle" id="orb"></div></div>
+          <div id="vu"></div>
+          <div id="sessionStatus" class="muted">Preparando…</div>
+          <div class="row wrap"><button class="btn" id="pauseBtn">⏸ Pausar escucha</button><button class="btn primary" id="endBtn">Terminar y analizar</button></div>
+        </div>
+        <div class="card"><div id="transcript"></div>
+          <div id="textInputWrap" class="row" style="display:none;margin-top:12px"><input type="text" id="textInput" placeholder="Escribe tu intervención…"/><button class="btn primary" id="sendText">Enviar</button></div></div>
+      </div>
+      <div id="sesionReport" style="display:none"></div>
+    </section>
+
+    <!-- BIBLIOTECA -->
+    <section class="view" id="view-biblioteca">
+      <div class="view-head"><div class="eyebrow">Tu material</div><h1>Biblioteca <span class="muted" id="docCount" style="font-size:.6em"></span></h1></div>
+      <div id="dropzone">📄 Toca o arrastra aquí tus archivos<br/><small class="muted">PDF (también escaneados), Word, PowerPoint, Excel, EPUB, texto y fotos de apuntes</small></div>
+      <input type="file" id="fileInput" multiple hidden accept=".pdf,.docx,.doc,.pptx,.xlsx,.xls,.txt,.md,.csv,.html,.htm,.epub,.png,.jpg,.jpeg,.webp"/>
+      <input type="text" id="docSearch" placeholder="Buscar documento…" style="margin-bottom:12px"/>
+      <div class="card"><div id="docList"></div></div>
+      <p class="hint">● verde: indexado con IA (búsqueda por significado) · ● ámbar: indexado local (por palabras). Ambos sirven.</p>
+    </section>
+
+    <!-- PROGRESO -->
+    <section class="view" id="view-stats">
+      <div class="view-head"><div class="eyebrow">Evolución</div><h1>Progreso</h1></div>
+      <div class="card" id="studyStats"></div>
+      <h3 class="sect">Ensayos orales</h3>
+      <div class="grid cols-4" id="statCards"></div>
+      <div class="card" style="margin-top:14px"><h3>Puntuación</h3><div id="chartScore"></div></div>
+      <div class="grid cols-2"><div class="card"><h3>Palabras por minuto</h3><div id="chartWpm"></div></div><div class="card"><h3>Muletillas</h3><div id="chartFillers"></div></div></div>
+      <div class="card"><h3>Copia de seguridad</h3>
+        <p class="hint">Descarga todo (temas, supuestos, documentos, repasos) en un archivo. Sirve para pasar tus datos del ordenador al móvil: en el otro dispositivo pulsa «Importar copia». La clave de IA no se incluye.</p>
+        <div class="row wrap"><button class="btn primary" id="exportJson">💾 Descargar copia</button><label class="btn">📥 Importar copia<input type="file" id="importJson" accept=".json" hidden/></label><button class="btn ghost" id="exportReport">🖨 Imprimir</button></div></div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section class="view" id="view-ajustes">
+      <div class="view-head"><div class="eyebrow">Configuración</div><h1>Ajustes</h1></div>
+      <div class="card">
+        <h3>Inteligencia artificial</h3>
+        <div class="field"><label>Proveedor</label><select id="provider"><option value="gemini">Google Gemini (recomendado, gratis)</option><option value="openai">OpenAI</option><option value="openrouter">OpenRouter</option><option value="anthropic">Anthropic (Claude)</option><option value="ollama">Ollama (local)</option></select></div>
+        <p class="hint" id="providerHint"></p>
+        <div class="field" id="keyField"><label>Clave de API</label><input type="password" id="apiKey" placeholder="Pega aquí tu clave (AQ.… o AIza…)" autocomplete="off"/></div>
+        <div class="field" id="ollamaUrlField" style="display:none"><label>Dirección de Ollama</label><input type="text" id="ollamaUrl"/></div>
+        <div class="grid cols-2 tight"><div class="field"><label>Modelo de conversación</label><input type="text" id="chatModel"/></div><div class="field"><label>Modelo de embeddings</label><input type="text" id="embModel"/></div></div>
+        <p class="hint">Si Google retira un modelo, la app busca automáticamente el más reciente disponible.</p>
+        <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="ocrToggle"/> Leer PDF escaneados y fotos con IA (OCR)</label><br/>
+        <button class="btn" id="testProvider">Probar conexión</button>
+      </div>
+      <div class="card">
+        <h3>Examen y adaptación</h3>
+        <div class="grid cols-2 tight">
+          <div class="field"><label>Fecha del examen</label><input type="date" id="examDate"/></div>
+          <div class="field"><label>Tiempo extra por adaptación (%)</label><select id="extraTime"><option value="0">Sin adaptación</option><option value="10">+10 %</option><option value="15">+15 %</option><option value="20">+20 %</option><option value="25">+25 %</option><option value="30">+30 %</option><option value="50">+50 %</option></select></div>
+          <div class="field"><label>Duración de un tema (min)</label><input type="number" id="examMinutes" min="10" max="300"/></div>
+          <div class="field"><label>Duración de un supuesto (min)</label><input type="number" id="supMinutes" min="10" max="300"/></div>
+        </div>
+        <div class="field"><label>Normativa de referencia (la IA la usa para corregir y crear supuestos)</label><textarea id="normativaRef" style="min-height:160px"></textarea></div>
+        <p class="hint">Revísala y complétala con la normativa de tu convocatoria; la IA señalará cuando no esté segura de una cita.</p>
+      </div>
+      <div class="card">
+        <h3>Lectura, voz y accesibilidad</h3>
+        <div class="grid cols-2 tight">
+          <div class="field"><label>Tamaño del texto</label><select id="fontScale"><option value="0.92">Pequeño</option><option value="1">Normal</option><option value="1.12">Grande</option><option value="1.25">Muy grande</option></select></div>
+          <div class="field"><label>Voz de lectura</label><select id="voiceSel"></select></div>
+          <div class="field"><label>Velocidad de lectura</label><select id="voiceRate"><option value="0.8">Lenta</option><option value="0.9">Pausada</option><option value="1">Normal</option><option value="1.15">Rápida</option><option value="1.3">Muy rápida</option></select></div>
+          <label class="chk"><input type="checkbox" id="autoSpeak"/> La IA habla en voz alta en los ensayos orales</label>
+        </div>
+        <button class="btn" id="themeToggle">Cambiar tema</button>
+      </div>
+      <div class="card"><h3>Datos</h3><p class="hint">Todo se guarda solo en este dispositivo. Haz copias de seguridad desde «Progreso».</p><button class="btn danger" id="wipeBtn">Borrar todos los datos</button></div>
+    </section>
+
+    <!-- PERFILES -->
+    <section class="view" id="view-perfiles">
+      <div class="view-head"><div class="eyebrow">Usuarios</div><h1>Perfiles</h1></div>
+      <div class="grid cols-3" id="profileList"></div>
+      <button class="btn primary" id="newProfileBtn" style="margin-top:14px">+ Nuevo perfil</button>
+    </section>
+  </main>
+</div>
+<div id="toasts"></div>
+<div id="modalBg"><div id="modal"></div></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script src="estudio.js"></script>
+</body>
+</html>

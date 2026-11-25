@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Verificar clave · Atril</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#141726;color:#eaecf4;margin:0;display:grid;place-items:center;min-height:100vh;padding:20px}
+.box{max-width:560px;width:100%;background:#20263b;border:1px solid #2a3149;border-radius:16px;padding:28px}
+h1{font-size:22px;margin:0 0 6px} p{color:#a6adc8;line-height:1.5;font-size:14px}
+input{width:100%;padding:11px 13px;background:#141726;border:1px solid #323a56;border-radius:10px;color:#eaecf4;font-size:14px;margin:10px 0;box-sizing:border-box}
+button{background:linear-gradient(135deg,#e8b84b,#f0cd7a);color:#3a2f12;border:none;padding:12px 20px;border-radius:11px;font-weight:600;font-size:14px;cursor:pointer}
+#out{margin-top:18px;padding:14px;border-radius:10px;font-size:14px;line-height:1.5;display:none;white-space:pre-wrap;word-break:break-word}
+.ok{background:#123a2a;border:1px solid #4cc38a;color:#9ff0c8}
+.bad{background:#3a1720;border:1px solid #e86b6b;color:#ffb3b3}
+code{background:#141726;padding:2px 6px;border-radius:5px;font-size:13px}
+</style></head><body>
+<div class="box">
+<h1>Verificar la clave de Gemini</h1>
+<p>Pulsa el botón para comprobar si la clave guardada en <code>config.js</code> conecta con Gemini. Se hace desde tu propio navegador.</p>
+<input id="k" placeholder="La clave se toma de config.js; puedes cambiarla aquí para probar otra"/>
+<button id="b">Comprobar conexión</button>
+<div id="out"></div>
+</div>
+<script src="config.js"></script>
+<script>
+const out=document.getElementById('out'),inp=document.getElementById('k');
+inp.value=(window.ATRIL_CONFIG&&window.ATRIL_CONFIG.apiKey)||'';
+const model=(window.ATRIL_CONFIG&&window.ATRIL_CONFIG.chatModel)||'gemini-flash-latest';
+document.getElementById('b').onclick=async()=>{
+  const key=inp.value.trim();
+  out.style.display='block';out.className='';out.textContent='Comprobando…';
+  if(!key){out.className='bad';out.textContent='No hay clave. Pégala arriba o en config.js.';return;}
+  try{
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{role:'user',parts:[{text:'Responde solo: OK'}]}]})});
+    const data=await r.json();
+    if(r.ok){out.className='ok';out.textContent='✅ Conexión correcta.\nRespuesta de Gemini: '+(data.candidates?.[0]?.content?.parts?.[0]?.text||'(vacía)')+'\n\nYa puedes usar Atril con normalidad.';}
+    else{out.className='bad';out.textContent='❌ La clave no ha sido aceptada (HTTP '+r.status+').\n\nDetalle: '+(data.error?.message||JSON.stringify(data)).slice(0,300)+'\n\n→ Revisa que la has copiado entera (las nuevas empiezan por AQ., las antiguas por AIza) o crea otra en aistudio.google.com → Get API key.';}
+  }catch(e){out.className='bad';out.textContent='❌ Error de red: '+e.message+'\n\nSi abriste el archivo con doble clic (file://), prueba a servirlo: python3 -m http.server y abre http://localhost:8000/verificar-clave.html';}
+};
+</script></body></html>
