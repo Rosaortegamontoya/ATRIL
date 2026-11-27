@@ -1,0 +1,58 @@
+{
+  "name": "Atril · Entrenador de oposiciones y comunicación oral",
+  "short_name": "Atril",
+  "description": "Entrena tu temario y supuestos de oposición, completos o por partes, con repaso espaciado, dictado por voz, lectura de PDF y corrección con IA. Todo privado en tu dispositivo.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#141726",
+  "theme_color": "#141726",
+  "lang": "es-ES",
+  "categories": [
+    "education",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Repaso de hoy",
+      "url": "./index.html#repaso",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Temario",
+      "url": "./index.html#temario",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

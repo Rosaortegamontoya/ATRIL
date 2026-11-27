@@ -40,6 +40,13 @@ function modal(title, bodyHTML, actions = []) {
     bg.onclick = e => { if (e.target === bg) { close(); resolve(null); } };
   });
 }
+// Muestra el error completo de la IA en una ventana (con opción de copiarlo)
+function showAIError(e, title = 'Error de la IA') {
+  const msg = (e && e.message) || String(e);
+  return modal(title, `<pre class="err-pre">${esc(msg)}</pre><p class="hint">Si el error dice API_KEY_INVALID o PERMISSION_DENIED, revisa la clave en Ajustes. Si dice RESOURCE_EXHAUSTED (429), has superado el límite gratuito: espera un rato.</p>`,
+    [{ label: 'Copiar', value: 'copy' }, { label: 'Cerrar', cls: 'primary', value: 'close' }])
+    .then(v => { if (v === 'copy') navigator.clipboard?.writeText(msg).then(() => toast('Error copiado', 'ok')).catch(() => {}); });
+}
 async function loadScript(src) {
   if ([...document.scripts].some(s => s.src === src)) return;
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar ' + src)); document.head.appendChild(s); });
@@ -117,7 +124,7 @@ const State = {
     }, cfg, g, p);
     // Migración: modelos de Gemini ya retirados por Google → modelos vigentes
     if (this.settings.provider === 'gemini') {
-      if (/^gemini-(1\.|2\.0)/.test(this.settings.chatModel || '')) this.settings.chatModel = 'gemini-flash-latest';
+      if (!p.modelOrderV3 || /^gemini-(1\.|2\.0)/.test(this.settings.chatModel || '')) { this.settings.chatModel = 'gemini-flash-latest'; this.settings.modelOrderV3 = true; if (this.profile) setTimeout(() => this.saveSettings(), 0); }
       if (/^(text-embedding-00|embedding-001)/.test(this.settings.embModel || '')) this.settings.embModel = 'gemini-embedding-2';
     }
     // Si config.js trae clave y el perfil aún no guardó ninguna, usa la de config
@@ -153,6 +160,15 @@ const Providers = {
     ollama: { chat: 'llama3.1', emb: 'nomic-embed-text' }
   },
   get(name) { return this['_' + name]; },
+  // Texto completo de un error HTTP: código, estado y mensaje tal como lo devuelve el servidor
+  async describeHttpError(r) {
+    const raw = await r.text().catch(() => '');
+    let line = 'HTTP ' + r.status + (r.statusText ? ' ' + r.statusText : '');
+    try { const e = JSON.parse(raw).error; if (e) { line += (e.status ? ' · ' + e.status : '') + (e.code && e.code !== r.status ? ' · código ' + e.code : '') + '\n   Mensaje: ' + (e.message || '');
+      const det = (e.details || []).map(d => d.reason || d.violations?.map(v => v.description || v.subject).join('; ') || d['@type']).filter(Boolean); if (det.length) line += '\n   Detalle: ' + det.join(' · '); return line; } } catch (x) {}
+    return line + (raw ? '\n   Respuesta: ' + raw : '');
+  },
+  aiError(title, lines) { const e = new Error(title + '\n\n' + lines.map((l, i) => (i + 1) + '. ' + l).join('\n\n')); e.aiDetail = true; return e; },
   canReadFiles() { return State.settings?.provider === 'gemini' && !!State.settings.apiKey; },
   // Pide JSON y lo interpreta con tolerancia
   async json(opts) {
@@ -199,20 +215,34 @@ const Providers = {
       emb.sort((a, b) => (/preview|exp/.test(a) - /preview|exp/.test(b)) || ver(b) - ver(a));
       return emb[0];
     },
+    // Orden fijo de modelos de conversación: se prueba cada uno hasta que uno responda
+    models: ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'],
+    order(s) {
+      const custom = s.chatModel && !this.models.includes(s.chatModel) ? [s.chatModel] : [];   // un modelo escrito a mano en Ajustes va primero
+      return [...custom, ...this.models];
+    },
     async chat({ system, messages, files, json }, s) {
       const contents = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
       if (files && files.length) contents[contents.length - 1].parts.unshift(...files.map(f => ({ inlineData: { mimeType: f.mime, data: f.b64 } })));
       const body = { contents, generationConfig: { temperature: json ? 0.3 : 0.8 } };
       if (json) body.generationConfig.responseMimeType = 'application/json';
       if (system) body.systemInstruction = { parts: [{ text: system }] };
-      let r = await this._post('models/' + s.chatModel + ':generateContent', body, s);
-      if (r.status === 404) {                         // modelo retirado → elegir otro y reintentar
-        const alt = await this.resolveModel('chat', s);
-        if (alt && alt !== s.chatModel) { s.chatModel = alt; State.saveSettings(); toast('Modelo actualizado a ' + alt, 'ok'); r = await this._post('models/' + alt + ':generateContent', body, s); }
+      const fails = [];
+      for (const model of this.order(s)) {
+        let r;
+        try { r = await this._post('models/' + model + ':generateContent', body, s); }
+        catch (e) { fails.push(model + ' → Error de red: ' + (e.name || 'Error') + ': ' + e.message + ' (sin conexión, bloqueado por el navegador o por un cortafuegos)'); continue; }
+        if (r.ok) {
+          const d = await r.json();
+          const text = d.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+          if (!text && d.promptFeedback?.blockReason) { fails.push(model + ' → HTTP 200 pero sin respuesta: bloqueado (' + d.promptFeedback.blockReason + ')'); continue; }
+          if (!text && d.candidates?.[0]?.finishReason && d.candidates[0].finishReason !== 'STOP') { fails.push(model + ' → HTTP 200 pero sin texto: finishReason ' + d.candidates[0].finishReason); continue; }
+          if (State.activeModel !== model) { State.activeModel = model; const sb = document.getElementById('sbProvider'); if (sb) sb.textContent = 'IA: ' + model; }
+          return text;
+        }
+        fails.push(model + ' → ' + await Providers.describeHttpError(r));
       }
-      if (!r.ok) throw new Error('Gemini ' + r.status + ': ' + (await r.text()).slice(0, 200));
-      const d = await r.json();
-      return d.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+      throw Providers.aiError('Ningún modelo de Gemini ha respondido. Se probaron en este orden:', fails);
     },
     async embed(texts, s) {
       const out = [];
@@ -234,7 +264,7 @@ const Providers = {
     async chat({ system, messages }, s) {
       const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
       const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.apiKey }, body: JSON.stringify({ model: s.chatModel, messages: msgs, temperature: 0.8 }) });
-      if (!r.ok) throw new Error('OpenAI ' + r.status + ': ' + (await r.text()).slice(0, 200));
+      if (!r.ok) throw Providers.aiError('OpenAI no ha respondido:', [await Providers.describeHttpError(r)]);
       return (await r.json()).choices[0].message.content;
     },
     async embed(texts, s) {
@@ -247,14 +277,14 @@ const Providers = {
     async chat({ system, messages }, s) {
       const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
       const r = await fetch('https://openrouter.ai/api/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.apiKey, 'HTTP-Referer': location.origin, 'X-Title': 'Atril' }, body: JSON.stringify({ model: s.chatModel, messages: msgs, temperature: 0.8 }) });
-      if (!r.ok) throw new Error('OpenRouter ' + r.status + ': ' + (await r.text()).slice(0, 200));
+      if (!r.ok) throw Providers.aiError('OpenRouter no ha respondido:', [await Providers.describeHttpError(r)]);
       return (await r.json()).choices[0].message.content;
     }
   },
   _anthropic: {
     async chat({ system, messages }, s) {
       const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': s.apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify({ model: s.chatModel, max_tokens: 1024, system: system || undefined, messages }) });
-      if (!r.ok) throw new Error('Anthropic ' + r.status + ': ' + (await r.text()).slice(0, 200));
+      if (!r.ok) throw Providers.aiError('Anthropic no ha respondido:', [await Providers.describeHttpError(r)]);
       return (await r.json()).content.map(c => c.text || '').join('');
     }
   },
@@ -262,7 +292,7 @@ const Providers = {
     async chat({ system, messages }, s) {
       const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
       const r = await fetch(s.ollamaUrl.replace(/\/$/, '') + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: s.chatModel, messages: msgs, stream: false }) });
-      if (!r.ok) throw new Error('Ollama ' + r.status);
+      if (!r.ok) throw Providers.aiError('Ollama no ha respondido:', [await Providers.describeHttpError(r)]);
       return (await r.json()).message.content;
     },
     async embed(texts, s) {
@@ -329,7 +359,7 @@ const Docs = {
     const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.onerror = rej; fr.readAsDataURL(file); });
     try {
       return await Providers.chat({ system: 'Eres un transcriptor exacto. Devuelve SOLO el texto del documento, literal, en su idioma original, respetando títulos, numeración de apartados y párrafos (un título por línea). No resumas ni comentes.', messages: [{ role: 'user', content: 'Transcribe el documento completo.' }], files: [{ mime, b64 }] });
-    } catch (e) { console.warn(e); toast('No se pudo leer con IA: ' + e.message.slice(0, 80), 'bad'); return null; }
+    } catch (e) { console.warn(e); showAIError(e, 'No se pudo leer ' + file.name + ' con IA'); return null; }
   },
   async _docx(file) { await loadScript(window.__LIBS__.mammoth); return (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value; },
   async _xlsx(file) {
@@ -781,7 +811,7 @@ const UI = {
     $('#ocrToggle') && ($('#ocrToggle').onchange = e => { s().ocr = e.target.checked; State.saveSettings(); });
     $('#themeToggle').onclick = () => { s().theme = s().theme === 'dark' ? 'light' : 'dark'; applyTheme(); State.saveSettings(); };
     $('#wipeBtn').onclick = async () => { if (await modal('Borrar todos los datos', '<p style="font-size:14px">Se eliminarán todos los perfiles, documentos, sesiones y ajustes de este dispositivo. No se puede deshacer.</p>', [{ label: 'Cancelar', value: false }, { label: 'Borrar todo', cls: 'danger', value: true }])) { await DB.clearAll(); location.reload(); } };
-    $('#testProvider').onclick = async () => { $('#testProvider').textContent = 'Probando…'; $('#testProvider').disabled = true; try { const r = await Providers.chat({ system: 'Responde solo: OK', messages: [{ role: 'user', content: 'di OK' }] }); toast('Conexión correcta: ' + r.slice(0, 40), 'ok'); } catch (e) { toast('Falló: ' + e.message, 'bad'); } $('#testProvider').textContent = 'Probar conexión'; $('#testProvider').disabled = false; };
+    $('#testProvider').onclick = async () => { $('#testProvider').textContent = 'Probando…'; $('#testProvider').disabled = true; try { const r = await Providers.chat({ system: 'Responde solo: OK', messages: [{ role: 'user', content: 'di OK' }] }); toast('Conexión correcta con ' + (State.activeModel || s().chatModel) + ': ' + r.slice(0, 40), 'ok'); } catch (e) { showAIError(e, 'La conexión ha fallado'); } $('#testProvider').textContent = 'Probar conexión'; $('#testProvider').disabled = false; };
   },
   fillSettings() {
     const s = State.settings;
@@ -1012,11 +1042,10 @@ const Health = {
     this.show('info', 'Comprobando conexión con la IA…');
     try { await Providers.chat({ system: 'Responde solo: OK', messages: [{ role: 'user', content: 'OK' }] }); this.ok(s); }
     catch (e) {
-      const msg = (e.message || '').slice(0, 140);
-      this.show('bad', 'No se pudo conectar con la IA: <code>' + esc(msg) + '</code>. Revisa la clave o el modelo. Puedes seguir en <b>modo ensayo</b>.', 'Revisar Ajustes', goAjustes);
+      this.show('bad', '<b>No se pudo conectar con la IA.</b> Puedes seguir en <b>modo ensayo</b>.<pre class="err-pre">' + esc(e.message || String(e)) + '</pre>', 'Ver / copiar error', () => showAIError(e, 'Error de conexión con la IA'));
     }
   },
-  ok(s) { this.show('ok', '✓ IA conectada (' + esc(s.provider) + ' · ' + esc(s.chatModel) + '). Todo listo para entrenar.'); setTimeout(() => { const b = $('#aiBanner'); if (b && b.classList.contains('ok')) b.style.display = 'none'; }, 4500); }
+  ok(s) { this.show('ok', '✓ IA conectada (' + esc(s.provider) + ' · ' + esc(State.activeModel || s.chatModel) + '). Todo listo para entrenar.'); setTimeout(() => { const b = $('#aiBanner'); if (b && b.classList.contains('ok')) b.style.display = 'none'; }, 4500); }
 };
 
 
@@ -1061,4 +1090,4 @@ async function boot() {
 }
 window.addEventListener('DOMContentLoaded', boot);
 // exponer funciones usadas desde HTML inline
-Object.assign(window, { UI, State, DB, Docs, RAG, Providers, Voice, Analyzer, Modes, Session, toast, modal, esc, el, uid, $, $$, fmtDate, clamp, exportData, importData, delDoc, delProfile, switchProfile, createProfile });
+Object.assign(window, { showAIError, UI, State, DB, Docs, RAG, Providers, Voice, Analyzer, Modes, Session, toast, modal, esc, el, uid, $, $$, fmtDate, clamp, exportData, importData, delDoc, delProfile, switchProfile, createProfile });

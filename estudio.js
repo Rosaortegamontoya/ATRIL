@@ -270,7 +270,7 @@ Devuelve SOLO JSON con esta forma:
         messages: [{ role: 'user', content: 'TEXTO DE REFERENCIA:\n' + source.slice(0, 150000) + '\n\n=====\nRECUERDO DE LA OPOSITORA:\n' + answer }]
       });
       r.source = 'ia'; r.nota = +r.nota || 0; return r;
-    } catch (e) { console.warn(e); toast('IA no disponible: corrección local', 'bad'); return this.local(source, answer); }
+    } catch (e) { console.warn(e); showAIError(e, 'La IA no ha podido corregir · se usa la corrección local'); return this.local(source, answer); }
   },
   html(r) {
     const li = (arr, col) => (arr && arr.length) ? `<ul class="fb-list">${arr.map(x => `<li><span class="dot" style="background:${col}"></span><span>${esc(typeof x === 'string' ? x : JSON.stringify(x))}</span></li>`).join('')}</ul>` : '<p class="muted small">—</p>';
@@ -383,7 +383,7 @@ const TemarioUI = {
     $('#tAI').onclick = async () => {
       if (!Eval.hasAI()) return toast('Configura la IA en Ajustes', 'bad');
       const b = $('#tAI'); b.disabled = true; b.textContent = 'Dividiendo…';
-      try { ta.value = await Temas.aiMark(ta.value); preview(); toast('Apartados propuestos por la IA. Revísalos.', 'ok'); } catch (e) { toast('Falló: ' + e.message, 'bad'); }
+      try { ta.value = await Temas.aiMark(ta.value); preview(); toast('Apartados propuestos por la IA. Revísalos.', 'ok'); } catch (e) { showAIError(e, 'No se pudo dividir con IA'); }
       b.disabled = false; b.textContent = '🤖 Dividir con IA';
     };
     $('#tSave').onclick = async () => {
@@ -649,7 +649,7 @@ const Entreno = {
     try {
       const r = await Providers.json({ system: 'Creas tarjetas de memorización para oposiciones de Orientación Educativa. Devuelve SOLO JSON {"tarjetas":[{"p":"pregunta breve y concreta","r":"respuesta en 1-3 frases, fiel al texto"}]}. Entre 6 y 12 tarjetas, centradas en conceptos clave, autores, clasificaciones, datos y normativa que aparecen en el texto. No inventes nada que no esté en el texto.', messages: [{ role: 'user', content: secs.map(s => '## ' + s.title + '\n' + s.text).join('\n\n').slice(0, 60000) }] });
       cards = U.shuffle(r.tarjetas || []);
-    } catch (e) { this.root().innerHTML += `<div class="card koc">No se pudieron crear: ${esc(e.message)}</div>`; return; }
+    } catch (e) { this.root().innerHTML += `<div class="card koc"><b>No se pudieron crear las preguntas.</b><pre class="err-pre">${esc(e.message)}</pre></div>`; return; }
     let i = 0, ok = 0;
     const draw = () => {
       if (i >= cards.length) {
@@ -824,7 +824,7 @@ const Supuestos = {
       });
       await this.edit(null, { title: r.titulo, etapa: p.etapa, ambito: p.ambito, enunciado: r.enunciado, preguntas: r.preguntas || [], modelo: (r.solucion_modelo ? '[Solución orientativa generada por IA: contrástala con tu normativa]\n' + r.solucion_modelo : '') });
       toast('Revisa el supuesto y pulsa Guardar', 'ok');
-    } catch (e) { toast('No se pudo generar: ' + e.message, 'bad'); this.renderList(); }
+    } catch (e) { this.renderList(); showAIError(e, 'No se pudo generar el supuesto'); }
   },
   async fromDoc() {
     const docs = await DB.byIndex('docs', 'profile', State.profile.id);
@@ -843,7 +843,7 @@ const Supuestos = {
       const list = r.supuestos || [];
       for (const x of list) await DB.put('supuestos', { id: uid(), profileId: State.profile.id, title: x.titulo || 'Supuesto', etapa: x.etapa || '', ambito: x.ambito || '', enunciado: x.enunciado || '', preguntas: (x.preguntas && x.preguntas.length) ? x.preguntas : ['Resuelve el supuesto de forma completa y fundamentada.'], modelo: x.solucion || '', docId, created: Date.now() });
       toast(list.length + ' supuesto(s) añadidos ✓', 'ok'); this.renderList();
-    } catch (e) { toast('No se pudo extraer: ' + e.message, 'bad'); this.renderList(); }
+    } catch (e) { this.renderList(); showAIError(e, 'No se pudieron extraer los supuestos'); }
   },
   async detail(id) {
     const s = await DB.get('supuestos', id); if (!s) return this.renderList();
@@ -928,7 +928,7 @@ Devuelve SOLO JSON: {"nota":0-10,"por_pregunta":[{"pregunta":"…","nota":0-10,"
         messages: [{ role: 'user', content: 'SUPUESTO:\n' + s.enunciado + (s.modelo ? '\n\nSOLUCIÓN MODELO (referencia, no la conoce la opositora):\n' + s.modelo : '') + '\n\n=====\n' + resp }]
       });
       r.source = 'ia'; r.nota = +r.nota || 0; return r;
-    } catch (e) { toast('IA no disponible: ' + e.message.slice(0, 60), 'bad'); return { nota: 0, resumen: 'No se pudo corregir con IA.', source: 'local' }; }
+    } catch (e) { showAIError(e, 'La IA no ha podido corregir el supuesto'); return { nota: 0, resumen: 'No se pudo corregir con IA. Error: ' + e.message, source: 'local' }; }
   },
   evalHtml(r) {
     const li = (a, c) => (a && a.length) ? `<ul class="fb-list">${a.map(x => `<li><span class="dot" style="background:${c}"></span><span>${esc(x)}</span></li>`).join('')}</ul>` : '<p class="muted small">—</p>';
